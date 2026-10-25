@@ -11,6 +11,11 @@ import { log } from './logger.js';
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 500;
 const TOKEN_SAFETY_MARGIN_MS = 60_000;
+const REQUEST_TIMEOUT_MS = Number(process.env.APALEO_TIMEOUT_MS) || 15_000;
+
+// Timeouts are treated like network errors (retried), so a hung connection
+// cannot block a booking attempt forever.
+const withTimeout = () => AbortSignal.timeout(REQUEST_TIMEOUT_MS);
 
 export class ApaleoError extends Error {
   constructor(message, { status, code, details, method, path } = {}) {
@@ -43,6 +48,7 @@ async function requestToken() {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: 'grant_type=client_credentials',
+    signal: withTimeout(),
   });
   const durationMs = Date.now() - started;
   log.info('apaleo.token', { status: res.status, durationMs });
@@ -140,6 +146,7 @@ export async function apaleoRequest(method, path, { query, body, headers = {} } 
           ...headers,
         },
         body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: withTimeout(),
       });
     } catch (networkError) {
       const durationMs = Date.now() - started;

@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Mini booking engine + room allocation agent on the Apaleo API",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
@@ -12,7 +14,8 @@
     "agent": "node scripts/run-agent.js",
     "agent:apply": "node scripts/run-agent.js --apply",
     "tag-units": "node scripts/tag-units.js",
-    "seed": "node scripts/seed-reservations.js"
+    "seed": "node scripts/seed-reservations.js",
+    "test": "node --test \"test/*.test.js\""
   },
   "dependencies": {
     "dotenv": "^16.4.5",
