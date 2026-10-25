@@ -1,6 +1,6 @@
 # apaleo-demo
 
-Mini booking engine on the Apaleo API (phase 1), with a room-allocation agent planned for phase 2.
+Mini booking engine on the Apaleo API (phase 1) and a room-allocation agent (phase 2).
 Property used: **PAR (Hotel Paris)**, test account.
 
 ## Run
@@ -12,7 +12,30 @@ npm run check          # token + list properties + one offer search
 npm start              # http://localhost:3000
 ```
 
-`npm run dev` restarts on file changes.
+`npm run dev` restarts on file changes. `npm test` runs the unit tests (no network).
+
+## Phase 2: room allocation agent
+
+```bash
+npm run tag-units -- --apply          # one-off: attribute scheme for the 51 PAR units
+npm run seed -- --apply [--date D]    # test set: 12 reservations with the brief's comments (default: tomorrow)
+npm run agent -- --show-input         # what the model receives (no model call)
+npm run agent [-- --date D]           # dry-run: proposals + report, nothing written
+npm run agent:apply                   # assign the validated proposals in Apaleo
+```
+
+Flow: arrivals of the day without a unit (`GET /booking/v1/reservations?dateFilter=Arrival&status=Confirmed`)
+→ free units per reservation with attributes (`GET /availability/v1/reservations/{id}/units?unitGroupId=`)
+→ one model call (strict JSON schema via `output_config.format`) → backend validation (unit is a candidate,
+same category, not used twice) → `PUT /booking/v1/reservation-actions/{id}/assign-unit/{unitId}` only with `--apply`.
+Reports land in `reports/allocation-<date>-<mode>.md` (gitignored). The model never sees guest names or emails.
+
+Guardrails: dry-run by default; the model can only pick from the candidate list; ambiguous comments are left
+unassigned with `needsHumanReview`; unmet requests get the closest room plus a review flag; the agent never
+touches dates, category, price, payment or cancellation.
+
+Unit attributes (set by `tag-units`): floor, Garden/Street view, Quiet, Near elevator, Accessible, Connecting,
+Corner, King, Bath, Private pool. Adjacent rooms = consecutive numbers on the same floor.
 
 ## Environment variables
 
@@ -24,7 +47,8 @@ npm start              # http://localhost:3000
 | `APALEO_IDENTITY_URL` | no | `https://identity.apaleo.com` | Token endpoint host |
 | `APALEO_API_URL` | no | `https://api.apaleo.com` | API host |
 | `PORT` | no | `3000` | HTTP port |
-| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | phase 2 | | Allocation agent |
+| `ANTHROPIC_API_KEY` | phase 2 | | Allocation agent |
+| `ANTHROPIC_MODEL` | no | `claude-opus-5-5` | Model used by the agent |
 
 `dotenv` does not override variables already set in the shell. If your shell exports an
 outdated `APALEO_CLIENT_SECRET`, run `env -u APALEO_CLIENT_SECRET npm start`.
@@ -56,6 +80,8 @@ guest + comment ──POST /api/bookings──▶ createReservation       ──
 - `src/server.js`: Express, static page, `/api/*` routes, error mapping (400 validation,
   Apaleo 4xx passthrough, 502 upstream).
 - `public/`: booking page (`index.html`, `app.js`) and confirmation page.
+- `src/allocationAgent.js`: phase 2 pipeline (load, prompt, validate, apply, report).
+- `scripts/`: `check-connection`, `tag-units`, `seed-reservations`, `run-agent`.
 
 ## Idempotence
 
