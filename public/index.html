@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hotel Paris · Réservation</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>Hotel Paris <span class="muted">· réservation directe</span></h1>
+      <span class="muted">Tarifs et disponibilités en direct depuis Apaleo</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card">
+      <h2>1. Vos dates</h2>
+      <form id="search" class="search" novalidate>
+        <label>Arrivée <input type="date" name="arrival" required /></label>
+        <label>Départ <input type="date" name="departure" required /></label>
+        <label>Adultes <input type="number" name="adults" min="1" max="8" value="2" required /></label>
+        <button type="submit" id="search-btn">Voir les chambres</button>
+      </form>
+      <div id="search-alert"></div>
+    </section>
+
+    <section id="offers" class="card hidden">
+      <h2>2. Choisissez votre chambre</h2>
+      <p id="offers-meta" class="muted"></p>
+      <div id="offers-list"></div>
+    </section>
+
+    <section id="guest" class="card hidden">
+      <h2>3. Vos coordonnées</h2>
+      <div id="selection" class="alert info"></div>
+      <form id="book" novalidate>
+        <div class="grid2">
+          <label>Prénom <input name="firstName" autocomplete="given-name" required /></label>
+          <label>Nom <input name="lastName" autocomplete="family-name" required /></label>
+          <label>Email <input type="email" name="email" autocomplete="email" required /></label>
+        </div>
+        <label style="margin-top:12px">Commentaire libre (étage calme, vue, arrivée tardive…)
+          <textarea name="comment" maxlength="1000" placeholder="Ex. : Nous venons avec un bébé, une chambre calme loin de la rue serait idéale."></textarea>
+        </label>
+        <p class="muted">Aucun paiement n'est demandé sur cette page de démonstration. La garantie est enregistrée selon le tarif choisi.</p>
+        <button type="submit" id="book-btn">Réserver</button>
+        <div id="book-alert"></div>
+      </form>
+    </section>
+  </main>
+
+  <footer class="muted">Prototype · Apaleo API · propriété PAR (sandbox)</footer>
+  <script src="/app.js"></script>
+</body>
+</html>

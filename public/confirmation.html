@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hotel Paris · Confirmation</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>Hotel Paris <span class="muted">· confirmation</span></h1>
+      <a href="/" class="muted">Nouvelle recherche</a>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card">
+      <h2>Votre réservation est confirmée</h2>
+      <p class="muted">Numéro de réservation Apaleo</p>
+      <div id="reservation-id" class="big">…</div>
+      <p class="muted" id="booking-id"></p>
+      <div id="alert"></div>
+    </section>
+
+    <section class="card" id="details" hidden>
+      <h2>Détails</h2>
+      <dl class="summary" id="summary"></dl>
+    </section>
+  </main>
+
+  <footer class="muted">Prototype · Apaleo API · propriété PAR (sandbox)</footer>
+
+  <script>
+    (async () => {
+      const params = new URLSearchParams(location.search);
+      const bookingId = params.get('bookingId');
+      const reservationId = params.get('reservationId');
+      const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+      const fmtMoney = (m) => (m ? new Intl.NumberFormat('fr-FR', { style: 'currency', currency: m.currency }).format(m.amount) : '—');
+      const fmtDate = (iso) => (iso ? new Date(iso.slice(0, 10) + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '—');
+
+      document.getElementById('reservation-id').textContent = reservationId || bookingId || '—';
+      if (bookingId) document.getElementById('booking-id').textContent = `Dossier (booking) ${bookingId}`;
+      if (!bookingId) {
+        document.getElementById('alert').innerHTML = '<div class="alert error">Aucun numéro de réservation fourni.</div>';
+        return;
+      }
+      try {
+        const res = await fetch(`/api/bookings/${encodeURIComponent(bookingId)}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Erreur ${res.status}`);
+        const r = data.reservation;
+        if (r?.id) document.getElementById('reservation-id').textContent = r.id;
+        const rows = [
+          ['Statut', r?.status],
+          ['Hôtel', r?.property],
+          ['Arrivée', fmtDate(r?.arrival)],
+          ['Départ', fmtDate(r?.departure)],
+          ['Adultes', r?.adults],
+          ['Chambre', `${r?.unitGroup || '—'} · ${r?.ratePlan || ''} (${r?.ratePlanCode || ''})`],
+          ['Total', fmtMoney(r?.totalGrossAmount)],
+          ['Annulation', r?.cancellationFee],
+          ['Garantie', r?.guaranteeType],
+          ['Client', data.booker ? `${data.booker.firstName} ${data.booker.lastName} · ${data.booker.email}` : '—'],
+          ['Votre commentaire', r?.guestComment || '—'],
+        ];
+        document.getElementById('summary').innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v ?? '—')}</dd>`).join('');
+        document.getElementById('details').hidden = false;
+      } catch (err) {
+        document.getElementById('alert').innerHTML = `<div class="alert error">Réservation créée, mais impossible de charger les détails : ${esc(err.message)}</div>`;
+      }
+    })();
+  </script>
+</body>
+</html>
