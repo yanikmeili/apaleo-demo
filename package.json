@@ -15,7 +15,10 @@
     "agent:apply": "node scripts/run-agent.js --apply",
     "tag-units": "node scripts/tag-units.js",
     "seed": "node scripts/seed-reservations.js",
-    "test": "node --test \"test/*.test.js\""
+    "test": "node --test \"test/*.test.js\"",
+    "simulate": "node scripts/simulate.js",
+    "simulate:clean": "node scripts/simulate-clean.js",
+    "provision": "node scripts/provision-property.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

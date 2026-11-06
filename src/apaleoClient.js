@@ -257,3 +257,67 @@ export const listUnitAttributes = () => apaleo.get('/inventory/v1/unit-attribute
 
 /** PATCH /inventory/v1/units/{id}  (scope units.manage) — JSON Patch */
 export const patchUnit = (id, operations) => apaleo.patch(`/inventory/v1/units/${encodeURIComponent(id)}`, operations);
+
+// ---------------------------------------------------------------------------
+// Simulator endpoints (paths + preconditions verified against api.apaleo.com swagger)
+// ---------------------------------------------------------------------------
+
+/** PUT /booking/v1/reservation-actions/{id}/cancel — Confirmed + arrival in the future */
+export const cancelReservation = (id) =>
+  apaleo.put(`/booking/v1/reservation-actions/${encodeURIComponent(id)}/cancel`);
+
+/** PUT /booking/v1/reservation-actions/{id}/checkin — Confirmed + unit assigned */
+export const checkInReservation = (id) =>
+  apaleo.put(`/booking/v1/reservation-actions/${encodeURIComponent(id)}/checkin`);
+
+/** PUT /booking/v1/reservation-actions/{id}/checkout — InHouse + departure no later than tomorrow */
+export const checkOutReservation = (id) =>
+  apaleo.put(`/booking/v1/reservation-actions/${encodeURIComponent(id)}/checkout`);
+
+/** GET /finance/v1/folios  (scope folios.read) */
+export const listFolios = (query) => apaleo.get('/finance/v1/folios', { pageSize: 100, ...query });
+
+/** POST /finance/v1/folios — create a second folio for a split  (scope folios.create) */
+export const createFolio = (body) => apaleo.post('/finance/v1/folios', body);
+
+/** POST /finance/v1/folio-actions/{folioId}/charges — serviceType + vatType are enums */
+export const postFolioCharge = (folioId, body) =>
+  apaleo.post(`/finance/v1/folio-actions/${encodeURIComponent(folioId)}/charges`, body);
+
+/** POST /finance/v1/folios/{folioId}/payments — custom payment, no processing (use method 'Cash') */
+export const postFolioPayment = (folioId, body) =>
+  apaleo.post(`/finance/v1/folios/${encodeURIComponent(folioId)}/payments`, body);
+
+/** PUT /finance/v1/folio-actions/{folioId}/move-charges — target folio must be open */
+export const moveFolioCharges = (folioId, body) =>
+  apaleo.put(`/finance/v1/folio-actions/${encodeURIComponent(folioId)}/move-charges`, body);
+
+/** PUT /finance/v1/folio-actions/{folioId}/close — only when balance is 0, irreversible */
+export const closeFolio = (folioId) =>
+  apaleo.put(`/finance/v1/folio-actions/${encodeURIComponent(folioId)}/close`);
+
+/** POST /finance/v1/invoices — debitor needs name, city, postalCode, countryCode */
+export const createInvoice = (body) => apaleo.post('/finance/v1/invoices', body);
+
+/** GET /finance/v1/invoices */
+export const listInvoices = (query) => apaleo.get('/finance/v1/invoices', { pageSize: 100, ...query });
+
+/** PUT /finance/v1/invoice-actions/{id}/cancel — body with reasonCode is required (415 without one) */
+export const cancelInvoice = (id, reasonCode = 'Other') =>
+  apaleo.put(`/finance/v1/invoice-actions/${encodeURIComponent(id)}/cancel`, { reasonCode });
+
+/** GET /rateplan/v1/rate-plans */
+export const listRatePlans = (query) => apaleo.get('/rateplan/v1/rate-plans', { pageSize: 100, ...query });
+
+/** GET /rateplan/v1/rate-plans/{id} */
+export const getRatePlan = (id) => apaleo.get(`/rateplan/v1/rate-plans/${encodeURIComponent(id)}`);
+
+/** POST /rateplan/v1/rate-plans — code: 3..20 chars, ^[a-zA-Z0-9_]*$ */
+export const createRatePlan = (body) => apaleo.post('/rateplan/v1/rate-plans', body);
+
+/** DELETE /rateplan/v1/rate-plans/{id} */
+export const deleteRatePlan = (id) =>
+  apaleoRequest('DELETE', `/rateplan/v1/rate-plans/${encodeURIComponent(id)}`);
+
+/** GET /inventory/v1/unit-groups */
+export const listUnitGroups = (query) => apaleo.get('/inventory/v1/unit-groups', { pageSize: 100, ...query });

@@ -104,3 +104,69 @@ booking instead of creating a second one. The "Réserver" button is disabled dur
 Notes from the sandbox: FLEX/IBRKF accept `guaranteeType: CreditCard` without any payment account;
 the booking is created as `Confirmed`. The token response reports scope `identity:permissions`
 only, yet booking read/write calls succeed with this simple client.
+
+## Hotel simulator (phase 3)
+
+Fills a property with a realistic 21-day booking curve so a demo opens on a hotel that looks
+run-in rather than empty.
+
+```bash
+npm run provision -- --from PAR --to DEMO   # one-off: clone a disposable property
+APALEO_PROPERTY_ID=DEMO npm run simulate -- --dry-run
+APALEO_PROPERTY_ID=DEMO npm run simulate
+APALEO_PROPERTY_ID=DEMO npm run simulate:clean
+```
+
+Flags: `--scale 0.5` (volume), `--delay 600` (ms between calls), `--seed`, `--no-backdating`
+(preview the fallback shape), `--dry-run`. `simulate:clean` also takes `--reset`.
+
+Occupancy follows 85% on D+0..D+2 declining linearly to 40% on D+21, split across unit groups in
+proportion to the real room count, with 1-5 night stays, a rate mix, ~10% guest comments and ~5%
+cancellations. `src/simulation/plan.js` is pure and deterministic for a given seed, so `--dry-run`
+shows exactly what the real run writes.
+
+### Marking and cleanup
+
+Every reservation carries `externalCode = "SIMULATION-ENTRETIEN-<runId>-<seq>"`; charges and
+payments carry the same prefix in `receipt`. `GET /booking/v1/reservations?externalCode=` matches
+on prefix, which is what `simulate:clean` targets. It refuses to write if anything without the
+marker appears in its filter, and never touches unmarked reservations.
+
+Apaleo has **no DELETE for reservations**. Cleanup cancels what is cancellable (Confirmed with a
+future arrival) and checks out anything still InHouse — shortening the stay first where needed,
+since check-out requires a departure no later than tomorrow. Checked-out reservations remain
+visible forever but hold no room. This is why the simulator should target a disposable property.
+
+### Sandbox constraints found the hard way
+
+These are enforced by the API but absent or wrong in the swagger, and each one cost a failed run:
+
+| Constraint | Symptom |
+|---|---|
+| Arrival dates cannot be backdated | `Cannot set the arrival date to yesterday after check-out time` — the simulator probes this once and falls back to same-day arrivals |
+| Check-out needs departure ≤ tomorrow | documented; departures are staged as one-night stays |
+| Cancel needs a future arrival | today's arrivals can never be cancelled, only checked out |
+| `rateplan.code` is `^[a-zA-Z0-9_]*$`, 3-20 chars | a hyphen is rejected, hence `SIMULATION_ENTRETIEN` for the code while the display name keeps `SIMULATION-ENTRETIEN` |
+| `accountingConfigs` is required | `You should specify the AccountingConfigs` although swagger omits it from `required` |
+| Custom sub-accounts are disabled | `Custom accounts are disabled` when cloning a base plan's `subAccountId` |
+| Surcharges required per occupancy | `Surcharges are missing for adults: 2, 3, 4` for a 4-person unit group |
+| Supported languages are en/de/it, en+de mandatory | `Description has unsupported translations` on `fr` |
+| Restrictions are inherited down the pricing chain | a derived plan with empty `restrictions` still fails with `The restrictions of the rate plan are not considered` |
+| Unsettled folios report a **negative** balance | pay `Math.abs(balance)`, not `balance` |
+| Creating an invoice closes the folio | a following `close` returns 422, which is not a failure |
+| Invoice debitor needs a full address | set it on the folio with PATCH rather than relying on it propagating from the guest |
+| `cancelInvoice` needs a body | 415 without `{ reasonCode }` |
+| Assigning a unit after check-in time auto-checks-in | the explicit check-in then returns 422, so the reservation's **status** is the only reliable signal |
+
+### Cloning a disposable property
+
+`CloneProperty` copies unit groups, rate plans, services and policies — but **not units** and
+**not rate prices**. `npm run provision` fills both gaps, and flips the source property's
+`isTemplate` flag around the call (a property that is not a template cannot be cloned) before
+restoring it. Unit attribute definitions are account-level, so attribute ids carry across and the
+recreated units keep their tags without re-running `tag-units`.
+
+`simulate:clean --reset` wipes all transactional data in one call, but needs the
+`core.properties.reset` permission, which this client does not have; it reports that and points at
+the normal cleanup. The reset path also refuses any property holding unmarked reservations, since
+it cannot tell simulated data from real.
