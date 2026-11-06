@@ -210,3 +210,13 @@ test('a pricing chain cycle does not hang the eligibility check', () => {
   const byId = new Map([['A', a], ['B', b]]);
   assert.equal(isRatePlanEligible(a, '2026-11-20', '2026-11-06', byId), true);
 });
+
+test('the property time zone offset follows the property, not a frozen constant', async () => {
+  const { propertyOffset } = await import('../src/allocationAgent.js');
+  // A frozen "+01:00" silently shifts the arrival-day filter in summer and abroad.
+  assert.equal(propertyOffset('2026-11-07', 'Europe/Paris'), '+01:00');
+  assert.equal(propertyOffset('2026-07-15', 'Europe/Paris'), '+02:00');
+  assert.equal(propertyOffset('2026-11-07', 'America/New_York'), '-05:00');
+  assert.equal(propertyOffset('2026-11-07', 'UTC'), '+00:00');
+  assert.equal(propertyOffset('2026-11-07', 'Not/AZone'), '+00:00');
+});

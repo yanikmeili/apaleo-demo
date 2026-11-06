@@ -7,11 +7,41 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from './config.js';
 import { log } from './logger.js';
-import { listReservations, listAvailableUnitsForReservation, assignUnit } from './apaleoClient.js';
+import { listReservations, listAvailableUnitsForReservation, assignUnit, getProperty } from './apaleoClient.js';
 
-const PROPERTY_TZ_OFFSET = '+01:00'; // Europe/Paris in winter; only used to bound the day filter
+/**
+ * UTC offset of the property's own time zone on a given date, e.g. "+01:00".
+ * A frozen offset silently shifts the day filter for a property in another zone,
+ * and breaks twice a year under daylight saving even for this one.
+ */
+export function propertyOffset(date, timeZone) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' })
+      .formatToParts(new Date(`${date}T12:00:00Z`));
+    const name = parts.find((p) => p.type === 'timeZoneName')?.value || '';
+    const m = name.match(/GMT([+-]\d{2}:\d{2})/);
+    if (m) return m[1];
+    if (/^GMT$/.test(name)) return '+00:00';
+  } catch {
+    /* unknown zone: fall through */
+  }
+  return '+00:00';
+}
 
-export const RULES = `You are the room allocation assistant of Hotel Paris. You receive tomorrow's arrivals that still
+let cachedProperty = null;
+async function propertyInfo() {
+  if (!cachedProperty) {
+    const p = await getProperty(config.apaleo.propertyId);
+    cachedProperty = {
+      id: p.id,
+      name: p.name?.en || p.name?.de || p.id,
+      timeZone: p.timeZone || 'UTC',
+    };
+  }
+  return cachedProperty;
+}
+
+export const rulesFor = (hotelName) => `You are the room allocation assistant of ${hotelName}. You receive tomorrow's arrivals that still
 have no room, each with the guest's free-text comment, and for each one the list of rooms that are
 free for the whole stay in the booked category. Pick the best room for each reservation.
 
@@ -36,6 +66,9 @@ the street; Street view = on the street; Quiet = courtyard side and away from th
 Near elevator = few steps from elevator and stairs; Accessible = step-free, wide door, roll-in shower;
 Connecting = door to the adjacent room; Corner = end of corridor; King, Bath, Private pool = room features.
 Light: higher floors and garden side get the most daylight.`;
+
+/** Kept for tests and callers that only need the wording. */
+export const RULES = rulesFor('the hotel');
 
 const OUTPUT_SCHEMA = {
   type: 'object',
@@ -73,11 +106,13 @@ export function tomorrowIso() {
 // 1 + 2. Load data from Apaleo
 // ---------------------------------------------------------------------------
 export async function loadArrivalsWithoutUnit(date) {
+  const { timeZone } = await propertyInfo();
+  const offset = propertyOffset(date, timeZone);
   const res = await listReservations({
     propertyIds: [config.apaleo.propertyId],
     dateFilter: 'Arrival',
-    from: `${date}T00:00:00${PROPERTY_TZ_OFFSET}`,
-    to: `${plusDays(date, 1)}T00:00:00${PROPERTY_TZ_OFFSET}`,
+    from: `${date}T00:00:00${offset}`,
+    to: `${plusDays(date, 1)}T00:00:00${offset}`,
     status: ['Confirmed'],
     expand: ['booker'],
   });
@@ -116,7 +151,8 @@ export async function buildInput(date) {
       candidates: await loadCandidates(r),
     });
   }
-  return { date, propertyId: config.apaleo.propertyId, reservations };
+  const { name, timeZone } = await propertyInfo();
+  return { date, propertyId: config.apaleo.propertyId, propertyName: name, timeZone, reservations };
 }
 
 // ---------------------------------------------------------------------------
@@ -128,9 +164,11 @@ export async function proposeAssignments(input, { client = new Anthropic({ apiKe
   const response = await client.messages.create({
     model: config.anthropic.model,
     max_tokens: 16000,
-    system: RULES,
+    // Claude Opus 5.5 defaults to effort "medium"; this is constraint-reasoning over
+    // guest requests, so the level is set explicitly rather than inherited.
+    output_config: { effort: 'high', format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
+    system: rulesFor(input.propertyName || 'the hotel'),
     messages: [{ role: 'user', content: `Arrivals for ${input.date} at ${input.propertyId}:\n\n${JSON.stringify(input.reservations, null, 1)}` }],
-    output_config: { format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
   });
   log.info('anthropic.request', { model: response.model, stop: response.stop_reason, durationMs: Date.now() - started, in: response.usage?.input_tokens, out: response.usage?.output_tokens });
   if (response.stop_reason === 'refusal') {

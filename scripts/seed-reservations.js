@@ -15,6 +15,10 @@ const departure = (() => {
   return d.toISOString().slice(0, 10);
 })();
 
+// Rate plan ids are "<propertyId>-<code>-<unitGroupCode>", so the property must come
+// from config rather than being baked into the string.
+const P = config.apaleo.propertyId;
+
 // [lastName, unit group, adults, comment, extra reservations in the same booking]
 const CASES = [
   ['Bebe', 'DBL', 2, 'Nous venons avec un bébé, on aimerait être loin de la rue et proche de l’ascenseur.'],
@@ -41,13 +45,13 @@ for (const [lastName, group, adults, comment, extra = 0] of CASES) {
     primaryGuest: guest,
     guaranteeType: 'Prepayment',
     guestComment: comment,
-    timeSlices: [{ ratePlanId: `PAR-NONREF-${group}` }, { ratePlanId: `PAR-NONREF-${group}` }],
+    timeSlices: [{ ratePlanId: `${P}-NONREF-${group}` }, { ratePlanId: `${P}-NONREF-${group}` }],
   };
   const payload = { booker: guest, reservations: Array.from({ length: 1 + extra }, () => ({ ...reservation })) };
   if (!APPLY) {
     console.log(`[dry-run] ${guest.lastName}: ${1 + extra} × ${group} "${comment}"`);
     continue;
   }
-  const created = await createBooking(payload, `seed-${arrival}-${lastName}`);
+  const created = await createBooking(payload, `seed-${P}-${arrival}-${lastName}`);
   console.log(`${guest.lastName.padEnd(20)} ${created.id}  ${created.reservationIds.map((r) => r.id).join(', ')}  "${comment}"`);
 }
