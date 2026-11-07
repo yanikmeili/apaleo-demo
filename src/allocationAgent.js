@@ -122,12 +122,18 @@ export async function loadArrivalsWithoutUnit(date) {
 export async function loadCandidates(reservation) {
   const res = await listAvailableUnitsForReservation(reservation.id, { unitGroupId: reservation.unitGroup.id });
   return (res?.units || [])
-    .filter((u) => !u.status?.isOccupied)
+    // The endpoint already restricts to units bookable for this reservation's dates.
+    // `status.isOccupied` describes the room right now, not during the stay, so filtering
+    // on it discards rooms whose current guest leaves long before the arrival date — for a
+    // stay a week out that removed 22 of 27 rooms, every upper floor among them.
+    // Maintenance is different: an out-of-service room is not allocatable at all.
+    .filter((u) => !u.status?.maintenanceType)
     .map((u) => ({
       id: u.id,
       name: u.name,
       unitGroupId: u.unitGroup?.id,
       condition: u.status?.condition,
+      occupiedNow: Boolean(u.status?.isOccupied),
       attributes: (u.attributes || []).map((a) => a.name),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -164,9 +170,8 @@ export async function proposeAssignments(input, { client = new Anthropic({ apiKe
   const response = await client.messages.create({
     model: config.anthropic.model,
     max_tokens: 16000,
-    // Claude Opus 5.5 defaults to effort "medium"; this is constraint-reasoning over
-    // guest requests, so the level is set explicitly rather than inherited.
-    output_config: { effort: 'high', format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
+    // Default effort: Claude Sonnet 5.5 defaults to "high", which suits this task.
+    output_config: { format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
     system: rulesFor(input.propertyName || 'the hotel'),
     messages: [{ role: 'user', content: `Arrivals for ${input.date} at ${input.propertyId}:\n\n${JSON.stringify(input.reservations, null, 1)}` }],
   });
