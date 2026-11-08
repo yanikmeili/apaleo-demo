@@ -28,7 +28,18 @@ const plusDays = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(
 const ALLOCATION_DATE = opt('allocation-date', plusDays(4));
 
 if (/^PAR$/i.test(P)) {
-  console.error(`\n  ✗ APALEO_PROPERTY_ID vaut ${P}. Cette commande régénère des données de démonstration ;\n    elle refuse de s'exécuter sur une propriété de production.\n`);
+  console.error(`
+  ✗ APALEO_PROPERTY_ID vaut ${P}.
+
+    Cette commande régénère des données de démonstration : elle refuse de s'exécuter
+    sur la propriété de production, qui contient de vraies réservations.
+
+    Corrige la ligne dans .env :
+        APALEO_PROPERTY_ID=DEMO2
+
+    ou, pour un seul lancement :
+        APALEO_PROPERTY_ID=DEMO2 npm run demo:fresh -- --apply
+`);
   process.exit(1);
 }
 
