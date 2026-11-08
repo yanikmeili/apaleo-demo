@@ -205,3 +205,23 @@ included. Close those too if the tunnel URL is ever shared beyond the team.
 
 Writes are additionally restricted to properties Apaleo reports as `Test`, never to the
 ones listed in `OPS_DENY_PROPERTIES` (default `PAR`).
+
+### Regenerating the data
+
+```bash
+npm run demo:fresh -- --apply     # clean, refill, stage the allocation day (~8 min)
+npm run demo:up                   # then server + tunnel + Apaleo tab
+```
+
+**Run it on the morning of the demo, not the night before.** The simulator builds its
+occupancy curve around the day it runs: today's arrivals, today's departures, the guests
+currently in house. Data made on a Friday still says Friday, so by Tuesday a third of the
+in-house guests are past their departure date and the planning looks broken.
+
+"From scratch" is as clean as Apaleo allows. The account has no `core.properties.reset`
+permission, and a reservation can never be deleted — only cancelled, and only while its
+arrival is still in the future. So `demo:fresh` cancels everything marked, checks the
+remaining guests out with their folios settled, and builds again. Cancelled and
+checked-out records stay visible in reports but hold no room.
+
+It refuses to run against `PAR`.
