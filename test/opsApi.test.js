@@ -110,3 +110,40 @@ test('a named room that is not free falls back and asks for a human', () => {
   assert.equal(assignments[0].needsHumanReview, true);
   assert.match(assignments[0].reason, /9\.999/);
 });
+
+// --- regression: a room must come from the booked category -------------------
+import { pickAssignableUnit } from '../src/simulation/run.js';
+
+const UNITS = [
+  { id: 'dbl-dirty', unitGroup: { id: 'DEMO-DBL' }, status: { condition: 'Dirty', isOccupied: false } },
+  { id: 'sgl-clean', unitGroup: { id: 'DEMO-SGL' }, status: { condition: 'Clean', isOccupied: false } },
+  { id: 'sgl-dirty', unitGroup: { id: 'DEMO-SGL' }, status: { condition: 'Dirty', isOccupied: false } },
+  { id: 'sgl-busy', unitGroup: { id: 'DEMO-SGL' }, status: { condition: 'Clean', isOccupied: true } },
+  { id: 'sgl-oos', unitGroup: { id: 'DEMO-SGL' }, status: { condition: 'Clean', maintenanceType: 'OutOfService' } },
+];
+
+test('a unit from another category is never picked', () => {
+  // The simulator used to omit the unitGroupId filter, which put 30 Single bookings
+  // into Double rooms and 23 Double bookings into Singles on the demo property.
+  assert.equal(pickAssignableUnit(UNITS, 'DEMO-DBL').id, 'dbl-dirty');
+  const sgl = pickAssignableUnit(UNITS, 'DEMO-SGL');
+  assert.equal(sgl.unitGroup.id, 'DEMO-SGL');
+});
+
+test('a clean room wins over a dirty one within the booked category', () => {
+  assert.equal(pickAssignableUnit(UNITS, 'DEMO-SGL').id, 'sgl-clean');
+});
+
+test('occupied and out-of-service rooms are skipped', () => {
+  const left = [UNITS[3], UNITS[4]];
+  assert.equal(pickAssignableUnit(left, 'DEMO-SGL'), null);
+});
+
+test('no room in the booked category yields null rather than a wrong room', () => {
+  assert.equal(pickAssignableUnit(UNITS, 'DEMO-FAMILY'), null);
+});
+
+test('an empty or missing list is handled', () => {
+  assert.equal(pickAssignableUnit([], 'DEMO-SGL'), null);
+  assert.equal(pickAssignableUnit(undefined, 'DEMO-SGL'), null);
+});

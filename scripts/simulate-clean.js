@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../src/config.js';
-import { listReservations, getReservation, cancelReservation, checkOutReservation, listInvoices, cancelInvoice, getRatePlan, deleteRatePlan, apaleo, ApaleoError } from '../src/apaleoClient.js';
+import { listReservations, getReservation, cancelReservation, checkOutReservation, listFolios, postFolioPayment, listInvoices, cancelInvoice, getRatePlan, deleteRatePlan, apaleo, ApaleoError } from '../src/apaleoClient.js';
 import { MARKER } from '../src/simulation/plan.js';
 import { makeThrottle, simRatePlanIdFor } from '../src/simulation/run.js';
 
@@ -27,6 +27,27 @@ const throttle = makeThrottle(DELAY);
 
 console.log(`\n  Nettoyage ${MARKER} — propriété ${config.apaleo.propertyId}`);
 console.log(`  ${DRY_RUN ? 'DRY-RUN — aucune écriture' : 'MODE RÉEL'}\n`);
+
+/**
+ * Pays off whatever a reservation's folios still owe, in cash. An unsettled folio
+ * reports a NEGATIVE balance (payments minus charges), so the amount to collect is
+ * its absolute value. Returns how many folios were settled.
+ */
+async function settleFolios(reservationId, throttle) {
+  const res = await throttle(() => listFolios({ reservationIds: reservationId }));
+  let n = 0;
+  for (const folio of res?.folios || []) {
+    const due = Math.abs(folio.balance?.amount ?? 0);
+    if (due < 0.005 || folio.status === 'Closed') continue;
+    await throttle(() => postFolioPayment(folio.id, {
+      method: 'Cash',
+      amount: { amount: due, currency: folio.balance?.currency || 'EUR' },
+      receipt: `${MARKER}-cleanup`,
+    }));
+    n += 1;
+  }
+  return n;
+}
 
 // --- reset path --------------------------------------------------------------
 if (RESET) {
@@ -163,6 +184,7 @@ if (inHouse.length) {
   const tomorrow = new Date(Date.parse(today) + 86400000).toISOString().slice(0, 10);
   let out = 0;
   let shortened = 0;
+  let settled = 0;
   for (const r of inHouse) {
     try {
       if (r.departure.slice(0, 10) > tomorrow) {
@@ -176,12 +198,17 @@ if (inHouse.length) {
         shortened += 1;
       }
       await throttle(() => checkOutReservation(r.id));
+      // Checking a guest out posts their open charges. Leaving at that produces a
+      // departed guest who still owes money, which is wrong in every report the demo
+      // shows, so the folio is settled in cash like a real departure.
+      settled += await settleFolios(r.id, throttle);
       out += 1;
     } catch (err) {
       failures.push({ stage: 'checkout', id: r.id, error: err.message, status: err.status });
     }
   }
   console.log(`  Clients sortis        ${out}/${inHouse.length}${shortened ? ` (${shortened} séjours raccourcis)` : ''}`);
+  console.log(`  Folios soldés         ${settled}`);
 }
 
 if (simPlan) {

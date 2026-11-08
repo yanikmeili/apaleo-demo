@@ -91,8 +91,8 @@ export function getGrantedScopes() {
 // ---------------------------------------------------------------------------
 // Generic request
 // ---------------------------------------------------------------------------
-function buildUrl(path, query) {
-  const url = new URL(path, config.apaleo.apiUrl);
+function buildUrl(path, query, baseUrl = config.apaleo.apiUrl) {
+  const url = new URL(path, baseUrl);
   if (query) {
     for (const [key, value] of Object.entries(query)) {
       if (value === undefined || value === null || value === '') continue;
@@ -127,8 +127,14 @@ function extractMessage(status, details) {
  * @param {string} path      e.g. '/booking/v1/offers'
  * @param {object} [options] { query, body, headers }
  */
-export async function apaleoRequest(method, path, { query, body, headers = {} } = {}) {
-  const url = buildUrl(path, query);
+/**
+ * @param {object} [options]
+ * @param {string} [options.baseUrl]  non-default host, e.g. https://integration.apaleo.com
+ *                                    for the UI-integration API, which is not served
+ *                                    from api.apaleo.com. The OAuth token is the same.
+ */
+export async function apaleoRequest(method, path, { query, body, headers = {}, baseUrl } = {}) {
+  const url = buildUrl(path, query, baseUrl);
   let retriedAuth = false;
   let attempt = 0;
 
@@ -324,3 +330,24 @@ export const listUnitGroups = (query) => apaleo.get('/inventory/v1/unit-groups',
 
 /** GET /inventory/v1/properties/{id} */
 export const getProperty = (id) => apaleo.get(`/inventory/v1/properties/${encodeURIComponent(id)}`);
+
+// ---------------------------------------------------------------------------
+// UI integrations — served from https://integration.apaleo.com, not api.apaleo.com
+// ---------------------------------------------------------------------------
+export const INTEGRATION_URL = process.env.APALEO_INTEGRATION_URL || 'https://integration.apaleo.com';
+
+/** GET /integration/v1/ui-integrations  (permission integration.ui_integrations.read) */
+export const listUiIntegrations = () =>
+  apaleoRequest('GET', '/integration/v1/ui-integrations', { baseUrl: INTEGRATION_URL });
+
+/** POST /integration/v1/ui-integrations/{target}  (permission integration.ui_integrations.create) */
+export const createUiIntegration = (target, body) =>
+  apaleoRequest('POST', `/integration/v1/ui-integrations/${encodeURIComponent(target)}`, { body, baseUrl: INTEGRATION_URL });
+
+/** PUT /integration/v1/ui-integrations/{target}/{id} — full replacement, every field required */
+export const updateUiIntegration = (target, id, body) =>
+  apaleoRequest('PUT', `/integration/v1/ui-integrations/${encodeURIComponent(target)}/${encodeURIComponent(id)}`, { body, baseUrl: INTEGRATION_URL });
+
+/** DELETE /integration/v1/ui-integrations/{target}/{id} */
+export const deleteUiIntegration = (target, id) =>
+  apaleoRequest('DELETE', `/integration/v1/ui-integrations/${encodeURIComponent(target)}/${encodeURIComponent(id)}`, { baseUrl: INTEGRATION_URL });

@@ -36,6 +36,24 @@ export function makeThrottle(delayMs) {
  * already fully booked". Residue from earlier runs cannot be deleted, so it must be
  * counted rather than wished away.
  */
+/**
+ * Picks a unit the reservation may actually be given. The category check is repeated
+ * here rather than trusted to the query filter: assigning a room from another unit
+ * group silently produces a booking whose guest is in the wrong kind of room, which
+ * is invisible until someone reads the planning.
+ *
+ * @param {Array} units        AvailableUnitItemModel[] from the availability endpoint
+ * @param {string} unitGroupId the group the reservation was booked in
+ */
+export function pickAssignableUnit(units, unitGroupId) {
+  const usable = (units || []).filter((u) =>
+    u?.id
+    && !u.status?.isOccupied
+    && !u.status?.maintenanceType
+    && (!unitGroupId || u.unitGroup?.id === unitGroupId));
+  return usable.find((u) => u.status?.condition === 'Clean') || usable[0] || null;
+}
+
 export async function fetchExistingOccupancy({ propertyId, today, horizonDays, unitGroups }) {
   const to = new Date(Date.parse(`${today}T00:00:00Z`) + (horizonDays + 2) * 86400000).toISOString().slice(0, 10);
   const occupied = {};
@@ -252,10 +270,12 @@ export async function applyPlan({ plan, throttle, log, probeResult }) {
     try {
       // AvailableUnitItemModel exposes `id` at the top level and the occupancy flag
       // under `status.isOccupied` — not `unit.id` / `isOccupied`.
-      const avail = await throttle(() => listAvailableUnitsForReservation(id));
-      const candidates = (avail?.units || []).filter((u) => u.id && !u.status?.isOccupied && !u.status?.maintenanceType);
-      const chosen = candidates.find((u) => u.status?.condition === 'Clean') || candidates[0];
+      // The unitGroupId filter is NOT optional: without it the endpoint returns units
+      // from every category, and a Single booking ends up in a Double.
+      const avail = await throttle(() => listAvailableUnitsForReservation(id, { unitGroupId: r.groupId }));
+      const chosen = pickAssignableUnit(avail?.units, r.groupId);
       if (chosen) await throttle(() => assignUnit(id, chosen.id));
+      else throw new ApaleoError(`Aucune chambre ${r.groupId} libre à attribuer`, { status: 409, method: 'GET', path: '/availability/v1/reservations/{id}/units' });
     } catch (err) { lastError = err; }
     try {
       await throttle(() => checkInReservation(id));
