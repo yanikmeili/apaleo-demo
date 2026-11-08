@@ -328,6 +328,10 @@ export const deleteRatePlan = (id) =>
 /** GET /inventory/v1/unit-groups */
 export const listUnitGroups = (query) => apaleo.get('/inventory/v1/unit-groups', { pageSize: 100, ...query });
 
+/** DELETE /inventory/v1/properties/{id} — property and ALL its data; Test status only */
+export const deleteProperty = (id) =>
+  apaleoRequest('DELETE', `/inventory/v1/properties/${encodeURIComponent(id)}`);
+
 /** GET /inventory/v1/properties/{id} */
 export const getProperty = (id) => apaleo.get(`/inventory/v1/properties/${encodeURIComponent(id)}`);
 

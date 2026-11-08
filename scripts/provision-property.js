@@ -113,8 +113,14 @@ for (const baseId of bases) {
   if (!fallback) { say(`⚠ ${counterpart} n'a aucun prix — ${baseId} laissé sans tarif`); continue; }
   // The two properties can have different check-in/out times, so the target's own
   // period boundaries are kept and only the amounts are copied across.
-  const rates = periods.map((p) => ({ from: p.from, to: p.to, price: priceByDate.get(p.from.slice(0, 10)) || fallback }));
-  say(`${baseId} : ${rates.length} nuits à charger depuis ${counterpart}`);
+  // A period that has already begun is rejected with "Cannot modify rates in the past",
+  // which day-use plans hit as soon as their slot has started today.
+  const now = Date.now();
+  const future = periods.filter((p) => Date.parse(p.from) > now);
+  const skipped = periods.length - future.length;
+  const rates = future.map((p) => ({ from: p.from, to: p.to, price: priceByDate.get(p.from.slice(0, 10)) || fallback }));
+  if (!rates.length) { say(`${baseId} : aucune période à venir à tarifer${skipped ? ` (${skipped} déjà commencées)` : ''}`); continue; }
+  say(`${baseId} : ${rates.length} nuits à charger depuis ${counterpart}${skipped ? ` (${skipped} période(s) passée(s) ignorée(s))` : ''}`);
   if (!DRY) { await apaleo.put(`/rateplan/v1/rate-plans/${baseId}/rates`, { rates }); say(`  ✓ chargé`); }
 }
 
