@@ -4,6 +4,7 @@
 // guards the CLI uses: the simulator and the cleanup run as the existing scripts, so the
 // marker filter and the "refuse if anything unmarked shows up" rule are not duplicated.
 import express from 'express';
+import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -12,6 +13,63 @@ import { log } from './logger.js';
 import { apaleo, assignUnit, ApaleoError } from './apaleoClient.js';
 import { buildInput, propertyInfo } from './allocationAgent.js';
 import { mockProposals } from './simulation/mockAllocator.js';
+
+// ---------------------------------------------------------------------------
+// Guarding the write routes
+//
+// Two independent checks, because neither is sufficient alone:
+//   * the shared password is the real gate — anyone with the tunnel URL would
+//     otherwise reach buttons that write into a live PMS;
+//   * the accountCode check is what Apaleo's guide asks for: the page is told which
+//     account the viewer is signed into, and a value that is not ours means the page
+//     is embedded somewhere it should not be. A browser can omit or forge it, so it
+//     narrows the attack surface rather than closing it — hence the password.
+// ---------------------------------------------------------------------------
+const WRITE_PASSWORD = process.env.OPS_WRITE_PASSWORD || '';
+
+/** Constant-time comparison over digests, so differing lengths do not leak. */
+function secretMatches(given, expected) {
+  if (!given || !expected) return false;
+  const a = crypto.createHash('sha256').update(String(given)).digest();
+  const b = crypto.createHash('sha256').update(String(expected)).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+let expectedAccountCode = process.env.OPS_ACCOUNT_CODE || null;
+async function accountCode() {
+  if (!expectedAccountCode) {
+    const account = await apaleo.get('/account/v1/accounts/current');
+    expectedAccountCode = account?.code || null;
+  }
+  return expectedAccountCode;
+}
+
+/** Applied to every mutating route. Reads stay open; see the README. */
+async function requireWriteAuth(req, res, next) {
+  try {
+    if (!WRITE_PASSWORD) {
+      return res.status(503).json({
+        error: 'Les actions d’écriture sont désactivées : OPS_WRITE_PASSWORD n’est pas défini sur le serveur.',
+        code: 'no_password_configured',
+      });
+    }
+    if (!secretMatches(req.get('x-ops-password'), WRITE_PASSWORD)) {
+      log.warn('ops.auth.rejected', { path: req.path, reason: 'password' });
+      return res.status(401).json({ error: 'Mot de passe incorrect.', code: 'bad_password' });
+    }
+    // Apaleo appends accountCode to the embedded page's URL; the page forwards it.
+    // Absent means the page is being used outside Apaleo, which the password already covers.
+    const given = req.get('x-ops-account');
+    if (given) {
+      const expected = await accountCode();
+      if (expected && given !== expected) {
+        log.warn('ops.auth.rejected', { path: req.path, reason: 'account', given });
+        return res.status(403).json({ error: `Cette page est réservée au compte ${expected}.`, code: 'wrong_account' });
+      }
+    }
+    next();
+  } catch (err) { next(err); }
+}
 
 // Properties the UI may never write to, whatever their status.
 const DENY = new Set((process.env.OPS_DENY_PROPERTIES || 'PAR').split(',').map((s) => s.trim()).filter(Boolean));
@@ -128,6 +186,10 @@ const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 // ---------------------------------------------------------------------------
 // Properties
 // ---------------------------------------------------------------------------
+router.get('/config', wrap(async (req, res) => {
+  res.json({ writesEnabled: Boolean(WRITE_PASSWORD), accountCode: await accountCode().catch(() => null) });
+}));
+
 router.get('/properties', wrap(async (req, res) => {
   const list = await apaleo.get('/inventory/v1/properties', { pageSize: 100 });
   const properties = (list?.properties || [])
@@ -173,7 +235,7 @@ function runToCompletion(args, propertyId) {
   });
 }
 
-router.post('/sim/run', wrap(async (req, res) => {
+router.post('/sim/run', requireWriteAuth, wrap(async (req, res) => {
   const propertyId = String(req.body?.propertyId || '');
   await assertWritable(propertyId);
   const scale = String(req.body?.scale ?? '1');
@@ -181,7 +243,7 @@ router.post('/sim/run', wrap(async (req, res) => {
   res.status(202).json(publicJob(job));
 }));
 
-router.post('/sim/clean', wrap(async (req, res) => {
+router.post('/sim/clean', requireWriteAuth, wrap(async (req, res) => {
   const propertyId = String(req.body?.propertyId || '');
   await assertWritable(propertyId);
   const job = startJob({ kind: 'clean', propertyId, args: ['scripts/simulate-clean.js'] });
@@ -245,7 +307,7 @@ router.get('/allocation/proposals', wrap(async (req, res) => {
  * first: a unit id coming from the browser is accepted only if it is still among that
  * reservation's own candidates, and no unit may be used twice.
  */
-router.post('/allocation/apply', wrap(async (req, res) => {
+router.post('/allocation/apply', requireWriteAuth, wrap(async (req, res) => {
   const propertyId = String(req.body?.propertyId || '');
   const date = String(req.body?.date || '');
   const approved = Array.isArray(req.body?.approved) ? req.body.approved : [];

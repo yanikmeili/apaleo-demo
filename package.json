@@ -19,7 +19,9 @@
     "simulate": "node scripts/simulate.js",
     "simulate:clean": "node scripts/simulate-clean.js",
     "provision": "node scripts/provision-property.js",
-    "register-ui": "node scripts/register-ui-integration.js"
+    "register-ui": "node scripts/register-ui-integration.js",
+    "demo:up": "node scripts/demo-up.js",
+    "demo:down": "node scripts/demo-down.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

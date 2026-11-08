@@ -9,11 +9,42 @@
   const qs = new URLSearchParams(location.search);
   const embedded = qs.has('accountCode') || window.self !== window.top;
 
+  // The write password is asked for once and kept for the tab only: sessionStorage
+  // dies with the tab, so a shared machine does not hand it to the next person.
+  const PW_KEY = 'ops-write-password';
+  const readPw = () => { try { return sessionStorage.getItem(PW_KEY) || ''; } catch { return ''; } };
+  const savePw = (v) => { try { sessionStorage.setItem(PW_KEY, v); } catch { /* private mode */ } };
+  const forgetPw = () => { try { sessionStorage.removeItem(PW_KEY); } catch { /* ignore */ } };
+
+  function askPassword(reason) {
+    const given = window.prompt(reason || 'Mot de passe pour écrire dans Apaleo :');
+    if (given === null) return null;
+    savePw(given.trim());
+    return given.trim();
+  }
+
   async function api(path, options = {}) {
-    const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...options });
+    const write = (options.method || 'GET').toUpperCase() !== 'GET';
+    const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+    if (write) {
+      let pw = readPw();
+      if (!pw) { pw = askPassword(); if (pw === null) throw new Error('Action annulée.'); }
+      headers['x-ops-password'] = pw;
+      // Apaleo tells the embedded page which account the viewer is signed into.
+      const account = qs.get('accountCode');
+      if (account) headers['x-ops-account'] = account;
+    }
+    const res = await fetch(path, { ...options, headers });
     let data = null;
     try { data = await res.json(); } catch { /* no body */ }
-    if (!res.ok) throw new Error(data?.error || `Erreur ${res.status}`);
+    if (!res.ok) {
+      if (data?.code === 'bad_password') {
+        forgetPw();
+        const retry = askPassword('Mot de passe incorrect. Réessayer :');
+        if (retry !== null) return api(path, options);
+      }
+      throw new Error(data?.error || `Erreur ${res.status}`);
+    }
     return data;
   }
   const notice = (kind, html) => `<div class="notice ${kind}">${html}</div>`;
@@ -252,8 +283,26 @@
     document.head.appendChild(tag);
   }
 
+  // Writes disabled server-side, or the page opened under another account: say so
+  // up front rather than letting someone fill in a form that will be refused.
+  async function checkConfig() {
+    try {
+      const cfg = await api('/api/ops/config');
+      const account = qs.get('accountCode');
+      const notices = [];
+      if (!cfg.writesEnabled) {
+        notices.push(notice('err', '<strong>Écritures désactivées.</strong> OPS_WRITE_PASSWORD n’est pas défini côté serveur : « Remplir », « Nettoyer » et « Appliquer » seront refusés.'));
+      }
+      if (account && cfg.accountCode && account !== cfg.accountCode) {
+        notices.push(notice('err', `<strong>Compte inattendu.</strong> Cette page est réservée au compte ${esc(cfg.accountCode)} ; elle est ouverte sous ${esc(account)}. Les écritures seront refusées.`));
+      }
+      if (notices.length) document.querySelector('.tabs').insertAdjacentHTML('beforebegin', notices.join(''));
+    } catch { /* la page reste utilisable en lecture */ }
+  }
+
   // ── boot ────────────────────────────────────────────────────────────────
   const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
   $('#adate').value = qs.get('date') || tomorrow;
+  checkConfig();
   loadProperties().catch((e) => { $('#ctx').textContent = `Erreur : ${e.message}`; });
 })();

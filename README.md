@@ -170,3 +170,38 @@ recreated units keep their tags without re-running `tag-units`.
 `core.properties.reset` permission, which this client does not have; it reports that and points at
 the normal cleanup. The reset path also refuses any property holding unmarked reservations, since
 it cannot tell simulated data from real.
+
+## Demo mornings
+
+```bash
+npm run demo:up      # server + HTTPS tunnel + repoint the Apaleo tab, in one go
+npm run demo:down    # stop both
+```
+
+`demo:up` downloads `cloudflared` into `bin/` on first use, starts the server, opens a
+Cloudflare quick tunnel, waits until the page actually answers through it, and then
+rewrites the UI integration's `sourceUrl`. A quick tunnel gets a **new hostname every
+time it starts**, so that last step is not optional — without it the Apaleo tab points
+at a dead address. It prints the write password at the end.
+
+The Apaleo tab is deliberately left declared by `demo:down`: removing it would make the
+app vanish from the account menu, and the next `demo:up` repoints it anyway.
+
+### Who may write
+
+Write actions (Remplir, Nettoyer, Appliquer) are guarded two ways:
+
+- **A shared password**, `OPS_WRITE_PASSWORD` in `.env`, sent as `x-ops-password`. Writes
+  are refused outright when it is unset, and the page says so. It is asked for once per
+  browser tab and kept in `sessionStorage`, so it does not survive the tab.
+- **The account code.** Apaleo appends `accountCode` to the embedded page's URL; the page
+  forwards it and the server compares it with its own account. A mismatch is refused.
+
+The account check is what Apaleo's guide asks for — it catches a page embedded under the
+wrong account — but a browser can omit or forge the header, so the password is the real
+gate. **Read endpoints are deliberately open**: anyone holding the tunnel URL can list
+properties, see the dry-run plan and read the allocation proposals, guest comments
+included. Close those too if the tunnel URL is ever shared beyond the team.
+
+Writes are additionally restricted to properties Apaleo reports as `Test`, never to the
+ones listed in `OPS_DENY_PROPERTIES` (default `PAR`).
