@@ -36,7 +36,8 @@ if (target) {
   try {
     await apaleo.post(`/inventory/v1/property-actions/${FROM}/clone`, {
       code: TO,
-      name: { en: `Hotel ${TO}`, de: `Hotel ${TO}` },
+      // A property code is not a hotel name; "Hotel DEMO2" reads like a bug on screen.
+      name: { en: opt('name', 'Hotel Demo'), de: opt('name', 'Hotel Demo') },
       description: { en: 'Disposable property for simulator runs.', de: 'Wegwerf-Property für Simulationsläufe.' },
       companyName: src.companyName,
       managingDirectors: src.managingDirectors,

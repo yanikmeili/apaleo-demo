@@ -8,7 +8,7 @@
 // The UI-integration API lives on https://integration.apaleo.com, not api.apaleo.com.
 // Apaleo refuses a non-HTTPS sourceUrl and any URL resolving to a private (RFC-1918)
 // address, so localhost cannot be registered — hence the tunnel.
-import { listUiIntegrations, createUiIntegration, deleteUiIntegration, ApaleoError, INTEGRATION_URL } from '../src/apaleoClient.js';
+import { listUiIntegrations, createUiIntegration, updateUiIntegration, deleteUiIntegration, ApaleoError, INTEGRATION_URL } from '../src/apaleoClient.js';
 
 const argv = process.argv.slice(2);
 const opt = (name, fallback) => {
@@ -16,6 +16,10 @@ const opt = (name, fallback) => {
   return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : fallback;
 };
 const APPLY = argv.includes('--apply');
+// A quick tunnel hands out a new hostname every time it restarts, so the declared
+// sourceUrl goes stale. --update rewrites the existing entry in place instead of
+// deleting and recreating it. PUT replaces the whole object: every field is resent.
+const UPDATE_ID = (() => { const i = argv.indexOf('--update'); return i >= 0 ? argv[i + 1] : null; })();
 const TARGET = opt('target', 'AccountMenuApps');
 const PATH = opt('path', '/ops');
 
@@ -74,7 +78,8 @@ const body = {
   sourceType: 'Public',
 };
 
-console.log(`\n  Cible       ${TARGET}`);
+console.log(`\n  ${UPDATE_ID ? `Mise à jour de ${UPDATE_ID}` : 'Nouvelle déclaration'}`);
+console.log(`  Cible       ${TARGET}`);
 console.log(`  sourceUrl   ${body.sourceUrl}`);
 console.log(`  sourceType  ${body.sourceType}`);
 console.log(`  label       ${body.label}`);
@@ -101,6 +106,12 @@ if (!APPLY) {
 }
 
 try {
+  if (UPDATE_ID) {
+    await updateUiIntegration(TARGET, UPDATE_ID, body);
+    console.log(`\n  ✓ mise à jour — id ${UPDATE_ID}`);
+    console.log(`  Visible dans app.apaleo.com sous le menu Apps du compte.\n`);
+    process.exit(0);
+  }
   const created = await createUiIntegration(TARGET, body);
   console.log(`\n  ✓ déclarée — id ${created?.id ?? '(non renvoyé)'}`);
   console.log(`  Visible dans app.apaleo.com sous le menu Apps du compte.\n`);
