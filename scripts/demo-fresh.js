@@ -55,7 +55,10 @@ console.log(`  Journée d'attribution visée : ${ALLOCATION_DATE}\n`);
 if (!APPLY) {
   for (const [i, s] of steps.entries()) console.log(`  ${i + 1}. ${s.label}\n     node ${s.args.join(' ')}`);
   console.log(`\n  Dry-run : rien n'a été écrit. Ajouter --apply.`);
-  console.log(`  Compter environ 8 minutes au total.\n`);
+  console.log(`\n  Durée mesurée sur une propriété déjà pleine : environ 80 minutes.`);
+  console.log(`  L'essentiel part dans le nettoyage, qui annule chaque réservation une par une`);
+  console.log(`  et solde chaque folio. Sur une propriété vide, compter ~10 minutes.`);
+  console.log(`  Pour aller plus vite : --scale 0.5 (moitié moins de réservations).\n`);
   process.exit(0);
 }
 

@@ -209,11 +209,16 @@ ones listed in `OPS_DENY_PROPERTIES` (default `PAR`).
 ### Regenerating the data
 
 ```bash
-npm run demo:fresh -- --apply     # clean, refill, stage the allocation day (~8 min)
+npm run demo:fresh -- --apply     # clean, refill, stage the allocation day
 npm run demo:up                   # then server + tunnel + Apaleo tab
 ```
 
-**Run it on the morning of the demo, not the night before.** The simulator builds its
+**Budget the time.** Measured at **~80 minutes** against an already-full property, not
+the ten you might expect: the cleanup cancels several hundred reservations one by one
+and settles every folio, each call spaced to stay clear of rate limits. Against an empty
+property it is closer to ten. `--scale 0.5` halves the volume if you are in a hurry.
+
+**Run it on the morning of the demo, not the night before** — but start it early. The simulator builds its
 occupancy curve around the day it runs: today's arrivals, today's departures, the guests
 currently in house. Data made on a Friday still says Friday, so by Tuesday a third of the
 in-house guests are past their departure date and the planning looks broken.
