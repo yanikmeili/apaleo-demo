@@ -28,18 +28,20 @@ export function propertyOffset(date, timeZone) {
   return '+00:00';
 }
 
-let cachedProperty = null;
-async function propertyInfo() {
-  if (!cachedProperty) {
-    const p = await getProperty(config.apaleo.propertyId);
-    cachedProperty = {
+const propertyCache = new Map();
+async function propertyInfo(propertyId = config.apaleo.propertyId) {
+  if (!propertyCache.has(propertyId)) {
+    const p = await getProperty(propertyId);
+    propertyCache.set(propertyId, {
       id: p.id,
       name: p.name?.en || p.name?.de || p.id,
       timeZone: p.timeZone || 'UTC',
-    };
+      status: p.status,
+    });
   }
-  return cachedProperty;
+  return propertyCache.get(propertyId);
 }
+export { propertyInfo };
 
 export const rulesFor = (hotelName) => `You are the room allocation assistant of ${hotelName}. You receive tomorrow's arrivals that still
 have no room, each with the guest's free-text comment, and for each one the list of rooms that are
@@ -105,11 +107,11 @@ export function tomorrowIso() {
 // ---------------------------------------------------------------------------
 // 1 + 2. Load data from Apaleo
 // ---------------------------------------------------------------------------
-export async function loadArrivalsWithoutUnit(date) {
-  const { timeZone } = await propertyInfo();
+export async function loadArrivalsWithoutUnit(date, propertyId = config.apaleo.propertyId) {
+  const { timeZone } = await propertyInfo(propertyId);
   const offset = propertyOffset(date, timeZone);
   const res = await listReservations({
-    propertyIds: [config.apaleo.propertyId],
+    propertyIds: [propertyId],
     dateFilter: 'Arrival',
     from: `${date}T00:00:00${offset}`,
     to: `${plusDays(date, 1)}T00:00:00${offset}`,
@@ -140,8 +142,8 @@ export async function loadCandidates(reservation) {
 }
 
 /** Everything the model needs, and nothing more (no names, no emails). */
-export async function buildInput(date) {
-  const arrivals = await loadArrivalsWithoutUnit(date);
+export async function buildInput(date, propertyId = config.apaleo.propertyId) {
+  const arrivals = await loadArrivalsWithoutUnit(date, propertyId);
   const reservations = [];
   for (const r of arrivals) {
     reservations.push({
@@ -157,8 +159,8 @@ export async function buildInput(date) {
       candidates: await loadCandidates(r),
     });
   }
-  const { name, timeZone } = await propertyInfo();
-  return { date, propertyId: config.apaleo.propertyId, propertyName: name, timeZone, reservations };
+  const { name, timeZone } = await propertyInfo(propertyId);
+  return { date, propertyId, propertyName: name, timeZone, reservations };
 }
 
 // ---------------------------------------------------------------------------

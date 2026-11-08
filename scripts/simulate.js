@@ -21,6 +21,9 @@ const DRY_RUN = argv.includes('--dry-run');
 // Apaleo refuses a past arrival date on this tenant; --no-backdating previews the
 // fallback shape without waiting for the probe to discover it again.
 const NO_BACKDATING = argv.includes('--no-backdating');
+// --json prints the dry-run plan as one JSON object instead of the text report,
+// so the ops UI consumes the same code path the CLI does.
+const AS_JSON = argv.includes('--json');
 const SCALE = Number(flag('scale', '1'));
 const DELAY = Number(flag('delay', '400'));
 const SEED = Number(flag('seed', '20261106'));
@@ -77,6 +80,21 @@ console.log(`\n  ── Échantillon ──────────────�
 for (const r of plan.reservations.slice(0, 8)) {
   console.log(`  ${r.externalCode}  ${r.arrival}→${r.departure}  ${r.groupId.replace(`${config.apaleo.propertyId}-`, '').padEnd(6)} ${r.adults}p  ${r.ratePlanId.padEnd(22)} ${r.role}${r.cancel ? ' [annulée]' : ''}`);
   if (r.comment) console.log(`      « ${r.comment} »`);
+}
+
+if (DRY_RUN && AS_JSON) {
+  process.stdout.write(`\n__PLAN_JSON__${JSON.stringify({
+    propertyId: config.apaleo.propertyId,
+    runId, seed: SEED, scale: SCALE, delayMs: DELAY,
+    totalRooms: s.totalRooms,
+    unitGroups: inventory.unitGroups.map((g) => ({ id: g.id, code: g.code, rooms: g.memberCount })),
+    familyNeedsPlan,
+    preoccupiedToday: preTotal,
+    estimatedCalls: estCalls,
+    estimatedSeconds: Math.round((estCalls * DELAY) / 1000),
+    summary: s,
+  })}\n`);
+  process.exit(0);
 }
 
 if (DRY_RUN) {

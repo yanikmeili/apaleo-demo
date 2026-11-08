@@ -7,6 +7,7 @@ import { config } from './config.js';
 import { log } from './logger.js';
 import { ApaleoError } from './apaleoClient.js';
 import { searchOffers, createReservation, getConfirmation, ValidationError } from './bookingService.js';
+import opsRouter from './opsApi.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
@@ -26,6 +27,10 @@ app.use((req, res, next) => {
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
 app.get('/api/health', (req, res) => res.json({ ok: true, propertyId: config.apaleo.propertyId }));
+
+// Apaleo UI integration: operator pages and their backend.
+app.use('/api/ops', opsRouter);
+app.get('/ops', (req, res) => res.sendFile(path.join(publicDir, 'ops.html')));
 
 app.get(
   '/api/offers',

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Outils de démo · Apaleo</title>
+  <link rel="stylesheet" href="/ops.css" />
+</head>
+<body>
+<div class="wrap">
+  <h1>Outils de démo</h1>
+  <p class="sub" id="ctx">Intégration Apaleo · chargement…</p>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-demo" aria-controls="panel-demo" aria-selected="true">Préparer une démo</button>
+    <button class="tab" role="tab" id="tab-alloc" aria-controls="panel-alloc" aria-selected="false">Attribution des chambres</button>
+  </div>
+
+  <!-- ───────────────── Onglet 1 ───────────────── -->
+  <section class="panel" id="panel-demo" role="tabpanel" aria-labelledby="tab-demo">
+    <div class="card">
+      <h2>Propriété</h2>
+      <div class="row">
+        <label class="field">Propriété de démonstration
+          <select id="prop"></select>
+        </label>
+        <label class="field" style="flex:0 1 130px">Volume
+          <select id="scale">
+            <option value="1">Complet</option>
+            <option value="0.5">Moitié</option>
+            <option value="0.25">Quart</option>
+          </select>
+        </label>
+      </div>
+      <p class="sub" id="prop-note" style="margin:10px 0 0"></p>
+      <div class="actions">
+        <button id="btn-plan">Voir le plan</button>
+        <button id="btn-fill" class="primary">Remplir l’hôtel</button>
+        <button id="btn-clean" class="danger">Nettoyer</button>
+      </div>
+    </div>
+
+    <div id="plan-out"></div>
+    <div id="job-out"></div>
+  </section>
+
+  <!-- ───────────────── Onglet 2 ───────────────── -->
+  <section class="panel" id="panel-alloc" role="tabpanel" aria-labelledby="tab-alloc" hidden>
+    <div class="card">
+      <h2>Arrivées à traiter</h2>
+      <div class="row">
+        <label class="field">Propriété
+          <select id="aprop"></select>
+        </label>
+        <label class="field" style="flex:0 1 160px">Date d’arrivée
+          <input type="date" id="adate" />
+        </label>
+        <label class="field" style="flex:0 1 230px">Mode
+          <select id="amode">
+            <option value="all">Tout valider — rien de présélectionné</option>
+            <option value="mixed" selected>Mixte — auto sauf cas douteux</option>
+            <option value="auto">Automatique — tout présélectionné</option>
+          </select>
+        </label>
+      </div>
+      <div class="actions">
+        <button id="btn-load" class="primary">Charger les propositions</button>
+      </div>
+      <p class="sub" style="margin:10px 0 0">Quel que soit le mode, aucune chambre n’est attribuée sans un clic sur « Appliquer les validées ».</p>
+    </div>
+
+    <div id="alloc-out"></div>
+  </section>
+</div>
+
+<script src="/ops.js"></script>
+</body>
+</html>
