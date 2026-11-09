@@ -74,6 +74,17 @@ if (already) {
 
 // ── 3. tunnel ───────────────────────────────────────────────────────────────
 step(3, 'Tunnel HTTPS');
+// A quick tunnel is revoked server-side after a few hours, and cloudflared then retries
+// for ever instead of exiting: the process looks healthy while serving nothing. Starting
+// a second one on top left the first spinning, so every run leaked a process. Clear out
+// any tunnel this repo started before opening a new one.
+const stale = spawnSync('pgrep', ['-f', `${CLOUDFLARED} tunnel`], { encoding: 'utf8' });
+const stalePids = (stale.stdout || '').split('\n').map((x) => Number(x.trim())).filter(Boolean);
+for (const pid of stalePids) {
+  try { process.kill(pid, 'SIGTERM'); } catch { /* already gone */ }
+}
+if (stalePids.length) ok(`${stalePids.length} tunnel(s) précédent(s) arrêté(s)`);
+
 const tunnelLogPath = path.join(RUN_DIR, 'tunnel.log');
 fs.writeFileSync(tunnelLogPath, '');
 const tunnelLog = fs.openSync(tunnelLogPath, 'a');

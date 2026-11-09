@@ -175,8 +175,16 @@ it cannot tell simulated data from real.
 
 ```bash
 npm run demo:up      # server + HTTPS tunnel + repoint the Apaleo tab, in one go
+npm run demo:check   # is the page actually reachable from outside?
 npm run demo:down    # stop both
 ```
+
+**A quick tunnel does not last a day.** Cloudflare revokes it after a few hours, and
+cloudflared then retries for ever instead of exiting — so `pgrep` shows a healthy
+process while the public URL returns nothing. `demo:check` asks the question that
+matters, by fetching the URL the Apaleo tab actually points at. When it fails, run
+`demo:up` again: it now stops any tunnel this repo started before opening a new one,
+which it did not before, so runs used to leak a retrying process each.
 
 `demo:up` downloads `cloudflared` into `bin/` on first use, starts the server, opens a
 Cloudflare quick tunnel, waits until the page actually answers through it, and then

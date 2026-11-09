@@ -23,7 +23,8 @@
     "demo:up": "node scripts/demo-up.js",
     "demo:down": "node scripts/demo-down.js",
     "seed:allocation": "node scripts/seed-allocation-day.js",
-    "demo:fresh": "node scripts/demo-fresh.js"
+    "demo:fresh": "node scripts/demo-fresh.js",
+    "demo:check": "node scripts/demo-check.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
