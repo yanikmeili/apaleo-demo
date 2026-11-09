@@ -20,7 +20,10 @@ app.use(express.static(publicDir, { extensions: ['html'] }));
 // Request log (no body, no personal data)
 app.use((req, res, next) => {
   const started = Date.now();
-  res.on('finish', () => log.info('http', { method: req.method, path: req.path, status: res.statusCode, durationMs: Date.now() - started }));
+  // originalUrl, not path: inside a mounted router req.path loses the mount prefix,
+  // so /api/ops/sim/clean was logged as /sim/clean and looked like it never arrived.
+  const fullPath = req.originalUrl.split('?')[0];
+  res.on('finish', () => log.info('http', { method: req.method, path: fullPath, status: res.statusCode, durationMs: Date.now() - started }));
   next();
 });
 

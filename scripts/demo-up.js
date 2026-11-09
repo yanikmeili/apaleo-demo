@@ -104,13 +104,24 @@ if (!base) fail(`pas d’URL de tunnel après 40 s — voir ${tunnelLogPath}`);
 ok(`ouvert : ${base}`);
 
 const pageUrl = `${base}/ops`;
+// Cloudflare needs a while to route a brand-new quick tunnel; 20 s was not always
+// enough and the run aborted with the tunnel open and the Apaleo tab left stale.
 let reachable = false;
-for (let i = 0; i < 20 && !reachable; i += 1) {
+let lastStatus = '—';
+for (let i = 0; i < 60 && !reachable; i += 1) {
   await sleep(1000);
   reachable = await fetch(pageUrl, { signal: AbortSignal.timeout(8000) })
-    .then(async (r) => r.ok && /Outils de démo/.test(await r.text())).catch(() => false);
+    .then(async (r) => { lastStatus = r.status; return r.ok && /Outils de démo/.test(await r.text()); })
+    .catch((e) => { lastStatus = e.name === 'TimeoutError' ? 'délai dépassé' : 'injoignable'; return false; });
+  if (!reachable && i > 0 && i % 15 === 0) console.log(`     …toujours ${lastStatus} après ${i} s, on patiente`);
 }
-if (!reachable) fail(`${pageUrl} ne répond pas encore. Le tunnel est ouvert mais la page n’est pas servie.`);
+if (!reachable) {
+  console.error(`\n  ✗ ${pageUrl} ne répond toujours pas après 60 s (dernier état : ${lastStatus}).`);
+  console.error('    Le tunnel est ouvert mais Cloudflare ne route pas encore. L’onglet Apaleo n’a');
+  console.error('    pas été modifié, il pointe donc encore sur l’adresse précédente.');
+  console.error('    Relance « npm run demo:up » dans une minute.\n');
+  process.exit(1);
+}
 ok('page servie et reconnue à travers le tunnel');
 
 // ── 4. Apaleo tab ───────────────────────────────────────────────────────────

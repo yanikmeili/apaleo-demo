@@ -34,7 +34,27 @@
       const account = qs.get('accountCode');
       if (account) headers['x-ops-account'] = account;
     }
-    const res = await fetch(path, { ...options, headers });
+    // The demo is served through a Cloudflare quick tunnel, which drops for a few
+    // seconds now and then: Cloudflare answers 530 "origin unreachable" and the click
+    // looks like a crash. Retry once, then say what actually happened.
+    let res;
+    try {
+      res = await fetch(path, { ...options, headers });
+    } catch {
+      await new Promise((r) => setTimeout(r, 1500));
+      try {
+        res = await fetch(path, { ...options, headers });
+      } catch {
+        throw new Error('Connexion au serveur perdue (tunnel interrompu). Réessaie dans quelques secondes ; si ça persiste, relance « npm run demo:up ».');
+      }
+    }
+    if (res.status === 530 || res.status === 502 || res.status === 503 || res.status === 504) {
+      await new Promise((r) => setTimeout(r, 1500));
+      res = await fetch(path, { ...options, headers }).catch(() => res);
+      if (res.status === 530 || res.status === 502 || res.status === 503 || res.status === 504) {
+        throw new Error(`Le tunnel ne joint plus le serveur (erreur ${res.status}). Rien n’a été écrit dans Apaleo. Relance « npm run demo:up » puis recharge la page.`);
+      }
+    }
     let data = null;
     try { data = await res.json(); } catch { /* no body */ }
     if (!res.ok) {
