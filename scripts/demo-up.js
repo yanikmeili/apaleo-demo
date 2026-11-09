@@ -78,7 +78,7 @@ step(3, 'Tunnel HTTPS');
 // for ever instead of exiting: the process looks healthy while serving nothing. Starting
 // a second one on top left the first spinning, so every run leaked a process. Clear out
 // any tunnel this repo started before opening a new one.
-const stale = spawnSync('pgrep', ['-f', `${CLOUDFLARED} tunnel`], { encoding: 'utf8' });
+const stale = spawnSync('pgrep', ['-f', 'cloudflared tunnel --url'], { encoding: 'utf8' });
 const stalePids = (stale.stdout || '').split('\n').map((x) => Number(x.trim())).filter(Boolean);
 for (const pid of stalePids) {
   try { process.kill(pid, 'SIGTERM'); } catch { /* already gone */ }

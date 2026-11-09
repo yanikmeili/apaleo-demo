@@ -22,7 +22,9 @@ console.log(`\n  Diagnostic — propriété ${config.apaleo.propertyId}\n`);
 const local = await probe(`http://localhost:${PORT}/ops`);
 console.log(`  Serveur local        ${local.ok ? '✓ en ligne' : `✗ injoignable (${local.status || local.err})`}`);
 
-const procs = spawnSync('pgrep', ['-f', path.join(repoRoot, 'bin/cloudflared')], { encoding: 'utf8' });
+// Match on the command shape, not an absolute path: the binary may have been started
+// relatively, and pgrep -f would then miss it and report no tunnel while one is up.
+const procs = spawnSync('pgrep', ['-f', 'cloudflared tunnel --url'], { encoding: 'utf8' });
 const pids = (procs.stdout || '').split('\n').map((x) => x.trim()).filter(Boolean);
 console.log(`  Processus tunnel     ${pids.length ? `${pids.length} (${pids.join(', ')})` : 'aucun'}`);
 

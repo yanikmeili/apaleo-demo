@@ -21,7 +21,7 @@ for (const [name, label] of [['tunnel', 'tunnel'], ['server', 'serveur']]) {
 }
 // The pid file only ever held the last one started. Sweep whatever else this repo left
 // behind, or revoked tunnels pile up retrying in the background.
-const sweep = spawnSync('pgrep', ['-f', path.join(repoRoot, 'bin/cloudflared')], { encoding: 'utf8' });
+const sweep = spawnSync('pgrep', ['-f', 'cloudflared tunnel --url'], { encoding: 'utf8' });
 const left = (sweep.stdout || '').split('\n').map((x) => Number(x.trim())).filter(Boolean);
 for (const pid of left) {
   try { process.kill(pid, 'SIGTERM'); console.log(`  tunnel résiduel : arrêté (pid ${pid})`); } catch { /* gone */ }
